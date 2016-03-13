@@ -8,20 +8,20 @@
 
 import SpriteKit
 
+enum BodyCategories: UInt32 {
+   case ball = 0b1,  world = 0b10, brick = 0b100, paddle = 0b1000
+}
+
 class GameScene: SKScene, SKPhysicsContactDelegate {
     
     var paddle:SKNode!
     var ball:SKNode!
     
-    let ballCategory: UInt32 = 1 << 0
-    let worldCategory: UInt32 = 1 << 1
-    let brickCategory: UInt32 = 1 << 2
-    let paddleCategory: UInt32 = 1 << 3
-    
     func setupBackground() {
-        let background = SKSpriteNode(imageNamed: "sunrise")
+        let background = SKSpriteNode(imageNamed: "background")
         background.anchorPoint = CGPoint(x: 0, y: 0)
         background.position = CGPoint(x: 0, y: 0)
+        background.size = frame.size
         addChild(background)
     }
     
@@ -41,45 +41,47 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         ball.zPosition = 1
         
         ball.physicsBody = SKPhysicsBody(circleOfRadius: radius)
-        ball.physicsBody!.dynamic = true
-        ball.physicsBody!.allowsRotation = false
-        ball.physicsBody!.restitution = 1.0
-        ball.physicsBody!.friction = 0.0
-        ball.physicsBody!.linearDamping = 0.0
-        ball.physicsBody!.categoryBitMask = ballCategory
-        ball.physicsBody!.collisionBitMask = worldCategory | brickCategory | paddleCategory
-        ball.physicsBody!.contactTestBitMask = worldCategory | brickCategory | paddleCategory
-        
+        ball.physicsBody!.dynamic            = true
+        ball.physicsBody!.allowsRotation     = true
+        ball.physicsBody!.restitution        = 1.0
+        ball.physicsBody!.friction           = 0.0
+        ball.physicsBody!.linearDamping      = 0.0
+        ball.physicsBody!.categoryBitMask    = BodyCategories.ball.rawValue
+        ball.physicsBody!.collisionBitMask   = BodyCategories.world.rawValue | BodyCategories.brick.rawValue | BodyCategories.paddle.rawValue
+        ball.physicsBody!.contactTestBitMask = BodyCategories.world.rawValue | BodyCategories.brick.rawValue | BodyCategories.paddle.rawValue
+
         return ball
     }
 
     func createPaddle() -> SKNode {
-        let side = 120.0
+        let side   = 120.0
         let paddle = SKShapeNode(rectOfSize: CGSize(width: side, height: side/3))
         paddle.fillColor = UIColor.blackColor()
-        paddle.position = CGPoint(x: 500, y: 30)
+        paddle.position = CGPoint(x: 500, y: 30 + side/3)
         paddle.zPosition = 2
+        paddle.strokeColor = UIColor.yellowColor()
 
         paddle.physicsBody = SKPhysicsBody(rectangleOfSize: CGSize(width: side, height: side/3))
-        paddle.physicsBody!.restitution = 0.1
-        paddle.physicsBody!.friction = 0.4
-        paddle.physicsBody!.dynamic = false
-        paddle.physicsBody!.categoryBitMask = paddleCategory
-        paddle.physicsBody!.collisionBitMask = ballCategory
-        paddle.physicsBody!.contactTestBitMask = ballCategory
+        paddle.physicsBody!.restitution        = 1
+        paddle.physicsBody!.friction           = 0.0
+        paddle.physicsBody!.dynamic            = false
+        paddle.physicsBody!.categoryBitMask    = BodyCategories.paddle.rawValue
+        paddle.physicsBody!.collisionBitMask   = BodyCategories.ball.rawValue
+        paddle.physicsBody!.contactTestBitMask = BodyCategories.ball.rawValue
         return paddle
     }
     
     
     func setupBricks(){
-        let side = 80
         let numBricks = 12
-        let startY=600
+        let brickSize = CGSize(width: frame.size.width/CGFloat(numBricks) - 10, height: 40)
+        let rows      = 3
+        let startY    = frame.size.height - CGFloat((rows+2) * Int(brickSize.height))
         
         var even = true
-        for row in 0...3 {
+        for row in 0...rows {
             for i in 1...numBricks {
-                let brick = createBrick(side, index: i, y: startY+side*row/2, even: even)
+                let brick = createBrick(brickSize, index: i, y: (startY) + CGFloat(row) * (brickSize.height), even: even)
                 addChild(brick)
             }
             even = !even
@@ -105,23 +107,24 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    func createBrick(side: Int, index: Int, y: Int, even: Bool) -> SKNode {
-        let brick = SKShapeNode(rectOfSize: CGSize(width: side, height: side/2))
+    func createBrick(size: CGSize, index: Int, y: CGFloat, even: Bool) -> SKNode {
+
+        let brick = SKShapeNode(rectOfSize: size)
         brick.fillColor = brickColor()
         
-        let x = even ? index*side + side/2 : index*side
-        
-        brick.position = CGPoint(x: x, y: y)
+        let x = even ? CGFloat(index) * size.width + size.height : CGFloat(index)*size.width
+
+        brick.position  = CGPoint(x: Int(x), y: Int(y))
         brick.zPosition = 1
         
-        brick.physicsBody = SKPhysicsBody(rectangleOfSize: CGSize(width: side, height: side/2))
-        brick.physicsBody!.dynamic = false
-        brick.physicsBody!.restitution = 1.0
-        brick.physicsBody!.friction = 0.0
+        brick.physicsBody = SKPhysicsBody(rectangleOfSize: size)
+        brick.physicsBody!.dynamic     = false
+        brick.physicsBody!.restitution = 0.1
+        brick.physicsBody!.friction    = 0.0
 
-        brick.physicsBody!.categoryBitMask = brickCategory
-        brick.physicsBody!.collisionBitMask = ballCategory
-        brick.physicsBody!.contactTestBitMask = ballCategory
+        brick.physicsBody!.categoryBitMask    = BodyCategories.brick.rawValue
+        brick.physicsBody!.collisionBitMask   = BodyCategories.ball.rawValue
+        brick.physicsBody!.contactTestBitMask = BodyCategories.ball.rawValue
 
         return brick
     }
@@ -130,7 +133,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         setupBackground()
         setupWorld()
         setupBricks()
-        
+
         ball = createBall()
         addChild(ball)
         ball.physicsBody!.applyImpulse(CGVector(dx:10, dy:10))
@@ -139,24 +142,26 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         addChild(paddle)
     }
     
-    override func touchesMoved(touches: NSSet, withEvent event: UIEvent) {
-        let touch : AnyObject! = touches.anyObject()
-        var location = touch.locationInNode(self)
-
+    override func touchesMoved(touches: Set<UITouch>, withEvent event: UIEvent?) {
+        let touch : AnyObject! = touches.first
+        let location = touch.locationInNode(self)
+        
         paddle.position.x = location.x
     }
     
     func brickFrom(contact: SKPhysicsContact) -> SKNode {
-        if ( contact.bodyA.categoryBitMask & brickCategory ) == brickCategory {
+        if ( contact.bodyA.categoryBitMask & BodyCategories.brick.rawValue ) == BodyCategories.brick.rawValue {
            return contact.bodyA.node!
         }
         return contact.bodyB.node!
     }
     
     func didBeginContact(contact: SKPhysicsContact) {
-        if ( contact.bodyA.categoryBitMask & brickCategory ) == brickCategory ||
-            ( contact.bodyB.categoryBitMask & brickCategory ) == brickCategory {
+        if ( contact.bodyA.categoryBitMask & BodyCategories.brick.rawValue ) == BodyCategories.brick.rawValue ||
+            ( contact.bodyB.categoryBitMask & BodyCategories.brick.rawValue ) == BodyCategories.brick.rawValue {
             let brick = brickFrom(contact)
+                brick.removeFromParent()
+                /*
                 brick.runAction(SKAction.sequence(
                     [SKAction.scaleTo(1.5, duration:0.1),
                         SKAction.scaleTo(0.1, duration:0.3),
@@ -164,7 +169,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                             brick.removeFromParent()
                             })
                         ]))
-                
+                */
         }
         
     }
